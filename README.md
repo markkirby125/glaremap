@@ -1,29 +1,41 @@
 # GlareMap
 
-Spatial glare heatmap + targeted softening for photophobia and migraine.
-**Comfort aid — not a medical device and not a diagnosis.**
+**Targeted glare softening for photophobia and migraine — dim only the bright spots, not the whole page.**
 
-> Status: **live** (2026-09-11) at https://markkirby125.github.io/glaremap/ — lab page and bookmarklet build.
+Global screen dimmers lower everything at once. Text darkens, images turn muddy, and the page becomes harder to read without fixing the regions that actually hurt.
 
-GlareMap estimates per-region brightness from computed CSS colors, renders a heatmap,
-and softens only the hottest regions with an SVG mask — instead of dimming the whole
-page like a global dimmer. "Glare" here is a **relative brightness estimate, not a
-photometric measurement**.
+GlareMap estimates per-region brightness from computed CSS colors, renders a heatmap, and softens only the hottest regions with an SVG mask. The rest of the page stays readable.
 
-## Use
+**Status:** live at [markkirby125.github.io/glaremap/](https://markkirby125.github.io/glaremap/) — lab page and bookmarklet build.
 
-- **Lab page:** https://markkirby125.github.io/glaremap/ — paste HTML or load a URL
-  best-effort, then adjust threshold and strength.
-- **Bookmarklet:** on the lab page, press "Copy bookmarklet", create a bookmark, and
-  click it on any page. To rebuild it from source: `npm run build`.
+> GlareMap is a comfort aid, not a medical device and not a diagnosis. "Glare" here is a **relative brightness estimate, not a photometric measurement**.
 
-## Honesty notes
+## Features
 
-- Image, video, and gradient regions are marked **unmeasured** and never scored as glare.
-- The overlay never intercepts clicks: the mask is `pointer-events: none` and skips
-  links, buttons, inputs, and form fields.
-- On sites with strict CSP, the panel shows "this site blocks injected styles" instead
-  of failing silently.
+- **Regional brightness estimation** from computed CSS colors.
+- **Heatmap overlay** showing which areas exceed the threshold.
+- **Targeted softening** via SVG mask, leaving text and images outside hot zones untouched.
+- **Click-through overlay** — the mask is `pointer-events: none`; links, buttons, inputs, and form fields remain interactive.
+- **Honest scope labeling** — image, video, and gradient regions are marked **unmeasured** and never scored as glare.
+- **CSP-aware failure** — the panel reports when a site blocks injected styles instead of failing silently.
+
+## Quick start
+
+### Lab page
+
+1. Open [markkirby125.github.io/glaremap/](https://markkirby125.github.io/glaremap/).
+2. Paste HTML or load a URL (best-effort).
+3. Adjust threshold and strength.
+
+### Bookmarklet
+
+On the lab page, press **Copy bookmarklet**, save it as a browser bookmark, then click it on any page.
+
+To rebuild from source:
+
+```bash
+npm run build   # bundles scanner+renderer+panel into bookmarklet.min.js
+```
 
 ## Develop
 
@@ -32,6 +44,14 @@ npm test        # node --test tests/*.test.mjs
 npm run build   # bundles scanner+renderer+panel into bookmarklet.min.js
 ```
 
+## Contributing
+
+Open an issue or submit a pull request. Please keep the comfort-aid framing and scope limitations accurate in any documentation changes.
+
 ## License
 
-MIT
+MIT License. See [LICENSE](LICENSE) for details.
+
+## Part of the Vision Apps toolkit
+
+GlareMap is one of four accessibility tools in the [Vision Apps](https://github.com/markkirby125/vision-apps) kit.
