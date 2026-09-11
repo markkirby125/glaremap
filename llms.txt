@@ -3,6 +3,7 @@
 > Spatial glare heatmap + targeted softening for photophobia. Comfort aid — not a medical device.
 
 - Source: https://github.com/markkirby125/glaremap
-- Lab page: `index.html` (paste HTML / URL best-effort)
-- Bookmarklet: built via `npm run build` → exported from the lab page
+- Live: https://markkirby125.github.io/glaremap/
+- Lab page: paste HTML / URL best-effort
+- Bookmarklet: exported from the lab page (rebuilt via `npm run build`)
 - Honesty: relative brightness estimate, not a photometric glare measurement; image/video/gradient regions marked "unmeasured".

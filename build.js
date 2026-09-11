@@ -7,7 +7,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const files = ['scanner.js', 'renderer.js', 'panel.js', 'bookmarklet.js'];
 
-const stripExports = (src) => src.replace(/^export\s+/gm, '');
+const stripExports = (src) =>
+  src.replace(/^export\s+(?=(?:default\s+)?(?:function|class|const|let|var|async))/gm, '');
 
 const code = files
   .map((f) => stripExports(readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')))

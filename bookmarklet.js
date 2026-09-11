@@ -17,6 +17,7 @@
     return;
   }
 
+  const savedFocus = document.activeElement;
   const state = { panel: null, observer: null, scanning: false };
   window.__glaremapState = state;
 
@@ -24,7 +25,7 @@
     new Promise((resolve) => {
       const run = () => resolve(task());
       if (typeof requestIdleCallback === 'function') {
-        requestIdleCallback(run, { timeout: 200 });
+        requestIdleCallback(run, { timeout: 1000 });
       } else {
         setTimeout(run, 0);
       }
@@ -57,6 +58,9 @@
     document.getElementById('glaremap-panel')?.remove();
     document.getElementById('glaremap-csp-fallback')?.remove();
     window.__glaremapState = null;
+    if (savedFocus && typeof savedFocus.focus === 'function') {
+      savedFocus.focus();
+    }
   }
 
   state.panel = createGlareMapPanel({

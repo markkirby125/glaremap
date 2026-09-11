@@ -3,7 +3,7 @@
 Spatial glare heatmap + targeted softening for photophobia and migraine.
 **Comfort aid — not a medical device and not a diagnosis.**
 
-> Status: in build (2026-09-11). Not yet published; install from source below.
+> Status: **live** (2026-09-11) at https://markkirby125.github.io/glaremap/ — lab page and bookmarklet build.
 
 GlareMap estimates per-region brightness from computed CSS colors, renders a heatmap,
 and softens only the hottest regions with an SVG mask — instead of dimming the whole
@@ -12,10 +12,10 @@ photometric measurement**.
 
 ## Use
 
-- **Lab page:** open `index.html` (or the GitHub Pages URL once published), paste HTML
-  or load a URL best-effort, then adjust threshold and strength.
-- **Bookmarklet:** build with `npm run build`, copy the generated bookmarklet from the
-  lab page's Export button, and click it on any page.
+- **Lab page:** https://markkirby125.github.io/glaremap/ — paste HTML or load a URL
+  best-effort, then adjust threshold and strength.
+- **Bookmarklet:** on the lab page, press "Copy bookmarklet", create a bookmark, and
+  click it on any page. To rebuild it from source: `npm run build`.
 
 ## Honesty notes
 

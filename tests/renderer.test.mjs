@@ -15,12 +15,17 @@ test('softenCells keeps only threshold-plus, measurable, non-interactive cells',
   assert.deepEqual(kept.map((c) => c.x), [0]);
 });
 
-test('buildMaskSVG is pointer-events none and clamps strength', () => {
+test('buildMaskSVG is pointer-events none, grid-space coords, and clamps strength', () => {
   const cells = [cell(0, 0, 0.8), cell(5, 5, 0.9)];
   const svg = buildMaskSVG(cells, 96, 54, 0.5, 2);
   assert.match(svg, /pointer-events:\s*none/);
   assert.ok(svg.includes('fill-opacity="0.85"'));
   assert.equal((svg.match(/<rect /g) || []).length, 2);
+  // Blocking regression: rects must use grid coordinates (0..cols × 0..rows),
+  // not pixel coordinates — viewBox is "0 0 96 54" and stretches to viewport.
+  assert.match(svg, /viewBox="0 0 96 54"/);
+  assert.match(svg, /<rect x="0\.0" y="0\.0" width="1" height="1"/);
+  assert.match(svg, /<rect x="5\.0" y="5\.0" width="1" height="1"/);
 });
 
 test('maskAlpha clamps to the safe band', () => {

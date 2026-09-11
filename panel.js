@@ -19,11 +19,11 @@ function makePanel() {
     </div>
     <label for="glaremap-threshold">Threshold
       <input type="range" id="glaremap-threshold" min="0" max="1" step="0.01" value="0.6">
-      <output id="glaremap-threshold-out">0.60</output>
+      <output id="glaremap-threshold-out" for="glaremap-threshold">0.60</output>
     </label>
     <label for="glaremap-strength">Strength
       <input type="range" id="glaremap-strength" min="0.1" max="0.85" step="0.05" value="0.35">
-      <output id="glaremap-strength-out">0.35</output>
+      <output id="glaremap-strength-out" for="glaremap-strength">0.35</output>
     </label>
     <div class="glaremap-actions">
       <button type="button" id="glaremap-scan">Scan again</button>
@@ -32,7 +32,7 @@ function makePanel() {
     <p id="glaremap-status" role="status" aria-live="polite"></p>
     <details>
       <summary>Top hotspots</summary>
-      <p id="glaremap-hotspots">Scan to list hotspots.</p>
+      <ul id="glaremap-hotspots" aria-label="Top hotspot regions"></ul>
     </details>
   `;
   return root;
@@ -52,9 +52,7 @@ function injectStyles() {
     #${PANEL_ID} button { min-height: 44px; min-width: 44px; margin: 4px 8px 4px 0; padding: 8px 12px; }
     #${PANEL_ID} .glaremap-note { display: block; font-size: 13px; opacity: 0.85; }
     #${PANEL_ID} :focus-visible { outline: 2px solid #ffd24a; outline-offset: 2px; }
-    @media (prefers-reduced-motion: no-preference) {
-      #${PANEL_ID} { transition: opacity 150ms ease; }
-    }
+    #${PANEL_ID} ul { margin: 4px 0 0; padding-left: 20px; }
   `;
   document.head.appendChild(style);
   return style;
@@ -67,7 +65,7 @@ export function stylesInjected() {
 
 export function createGlareMapPanel({ onScan, onOff, onThreshold, onStrength } = {}) {
   const panel = makePanel();
-  document.documentElement.appendChild(panel);
+  (document.body || document.documentElement).appendChild(panel);
 
   const threshold = panel.querySelector('#glaremap-threshold');
   const thresholdOut = panel.querySelector('#glaremap-threshold-out');
@@ -82,9 +80,15 @@ export function createGlareMapPanel({ onScan, onOff, onThreshold, onStrength } =
     status.textContent = text;
   };
   const setHotspots = (list) => {
-    hotspots.textContent = list.length
-      ? list.map((h) => `row ${h.row}, col ${h.col} (${h.luma})`).join(' · ')
-      : 'No hotspots above the threshold.';
+    hotspots.replaceChildren(
+      ...(list.length
+        ? list.map((h) => {
+            const li = document.createElement('li');
+            li.textContent = `row ${h.row}, col ${h.col} (${h.luma})`;
+            return li;
+          })
+        : [Object.assign(document.createElement('li'), { textContent: 'No hotspots above the threshold.' })]),
+    );
   };
 
   threshold.addEventListener('input', () => {
@@ -98,24 +102,29 @@ export function createGlareMapPanel({ onScan, onOff, onThreshold, onStrength } =
   scanBtn.addEventListener('click', () => onScan?.());
   offBtn.addEventListener('click', () => onOff?.());
 
-  // Escape turns GlareMap off (non-modal; never traps focus).
+  // Escape turns GlareMap off (non-modal; never traps focus). Don't swallow
+  // Escape while the user is dragging or cancelling a range input.
   panel.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onOff?.();
-    }
+    if (e.key !== 'Escape') return;
+    if (e.target === threshold || e.target === strength) return;
+    e.preventDefault();
+    onOff?.();
   });
 
   return { panel, threshold, strength, setStatus, setHotspots, off: () => onOff?.() };
 }
 
-/** Insert or replace the softening mask. Returns the mask SVG element. */
+/** Insert or replace the softening mask. Parses SVG as a document (no innerHTML). */
 export function applyMaskSVG(svgString) {
   clearMaskSVG();
   const wrapper = document.createElement('div');
   wrapper.id = 'glaremap-mask';
-  wrapper.innerHTML = svgString;
-  document.documentElement.appendChild(wrapper);
+  const parsed = new DOMParser().parseFromString(svgString, 'image/svg+xml');
+  const svg = parsed.documentElement;
+  if (svg && svg.namespaceURI === 'http://www.w3.org/2000/svg') {
+    wrapper.appendChild(document.importNode(svg, true));
+  }
+  (document.body || document.documentElement).appendChild(wrapper);
   return wrapper;
 }
 

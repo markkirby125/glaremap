@@ -31,20 +31,24 @@ test('WCAG relative luminance weights are exact', () => {
   close(luminanceFromRGB(0, 0, 0), 0, 1e-6);
 });
 
-test('parseColor handles hex and rgb()/rgba() forms', () => {
+test('parseColor handles hex, legacy rgb(), and space-separated rgb()', () => {
   assert.deepEqual(parseColor('#fff'), { r: 255, g: 255, b: 255, a: 1 });
   assert.deepEqual(parseColor('#102030'), { r: 16, g: 32, b: 48, a: 1 });
   assert.deepEqual(parseColor('rgb(255, 0, 128)'), { r: 255, g: 0, b: 128, a: 1 });
   assert.deepEqual(parseColor('rgba(10, 20, 30, 0.5)'), { r: 10, g: 20, b: 30, a: 0.5 });
+  assert.deepEqual(parseColor('rgb(255 0 128)'), { r: 255, g: 0, b: 128, a: 1 });
+  assert.deepEqual(parseColor('rgb(255 0 128 / 0.5)'), { r: 255, g: 0, b: 128, a: 0.5 });
   assert.equal(parseColor('not-a-color'), null);
   assert.deepEqual(parseColor('transparent'), { r: 0, g: 0, b: 0, a: 0 });
 });
 
-test('colorToLuminance returns worst-case composited luminance', () => {
+test('colorToLuminance composites alpha in linear luminance space', () => {
   assert.equal(colorToLuminance('#fff'), 1);
   assert.equal(colorToLuminance('#000'), 0);
   // Half-transparent white over white is still full white → worst case 1.
   assert.equal(colorToLuminance('rgba(255, 255, 255, 0.5)'), 1);
+  // Half-transparent black over white reads as mid-gray → worst case 0.5.
+  assert.equal(colorToLuminance('rgba(0, 0, 0, 0.5)'), 0.5);
   assert.equal(colorToLuminance('nonsense'), 0);
 });
 

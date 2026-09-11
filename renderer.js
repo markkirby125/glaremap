@@ -21,12 +21,13 @@ export function maskAlpha(strength) {
  */
 export function buildMaskSVG(cells, cols, rows, threshold, strength = 0.35) {
   const alpha = maskAlpha(strength);
+  // Rect coordinates are in GRID space (0..cols × 0..rows); the SVG is stretched
+  // to the viewport with preserveAspectRatio="none", so each grid cell maps 1:1
+  // to the corresponding pixel cell computed by the scanner.
   const patches = softenCells(cells, threshold).map((c) => {
-    const x = (c.x * c.w).toFixed(1);
-    const y = (c.y * c.h).toFixed(1);
-    const w = c.w.toFixed(1);
-    const h = c.h.toFixed(1);
-    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2"/>`;
+    const x = c.x.toFixed(1);
+    const y = c.y.toFixed(1);
+    return `<rect x="${x}" y="${y}" width="1" height="1" rx="0.1"/>`;
   });
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${cols} ${rows}" ` +

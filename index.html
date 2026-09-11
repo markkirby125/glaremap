@@ -131,6 +131,7 @@
       doc.getElementById('glaremap-heatmap')?.remove();
       const canvas = doc.createElement('canvas');
       canvas.id = 'glaremap-heatmap';
+      canvas.setAttribute('aria-hidden', 'true');
       canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483645;opacity:0.55;';
       canvas.width = cols;
       canvas.height = rows;
@@ -144,11 +145,19 @@
       (doc.body || doc.documentElement).appendChild(canvas);
     }
 
+    function svgFromString(svgString) {
+      const parsed = new DOMParser().parseFromString(svgString, 'image/svg+xml');
+      return parsed.documentElement;
+    }
+
     function applyMask(doc, cells, cols, rows) {
       doc.getElementById('glaremap-mask')?.remove();
       const wrapper = doc.createElement('div');
       wrapper.id = 'glaremap-mask';
-      wrapper.innerHTML = buildMaskSVG(cells, cols, rows, Number(threshold.value), Number(strength.value));
+      const svg = svgFromString(buildMaskSVG(cells, cols, rows, Number(threshold.value), Number(strength.value)));
+      if (svg && svg.namespaceURI === 'http://www.w3.org/2000/svg') {
+        wrapper.appendChild(doc.adoptNode(svg));
+      }
       (doc.body || doc.documentElement).appendChild(wrapper);
     }
 
@@ -171,17 +180,38 @@
       setStatus(`Scanned ${result.scanned} elements. Image/video/gradient regions are unmeasured.`);
     }
 
+    // Best-effort sanitizer for paste mode. The preview iframe has
+    // sandbox="allow-same-origin" (required to scan the rendered document) but
+    // NOT allow-scripts, so pasted scripts never run; this strips the obvious
+    // vectors as defence-in-depth before the HTML reaches srcdoc.
+    function sanitizePasteHTML(html) {
+      return html
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+        .replace(/(\s(?:href|src|action)\s*=\s*["'])javascript:[^"']*/gi, '$1#');
+    }
+
+    function waitForFrame(timeoutMs) {
+      return new Promise((resolve) => {
+        const started = Date.now();
+        const check = () => {
+          if (frame.contentDocument?.readyState === 'complete') return resolve();
+          if (Date.now() - started >= timeoutMs) return resolve();
+          setTimeout(check, 50);
+        };
+        frame.onload = () => resolve();
+        check();
+      });
+    }
+
     scanBtn.addEventListener('click', async () => {
       const html = paste.value.trim();
       if (html) {
         frame.removeAttribute('src');
-        frame.srcdoc = html;
-        await new Promise((resolve) => {
-          frame.onload = resolve;
-          setTimeout(resolve, 800);
-        });
+        frame.srcdoc = sanitizePasteHTML(html);
+        await waitForFrame(3000);
         const doc = frame.contentDocument;
-        if (!doc) { setStatus('Could not access the preview document.'); return; }
+        if (!doc || !doc.body) { setStatus('Could not access the preview document.'); return; }
         const w = frame.contentWindow?.innerWidth || 960;
         const h = frame.contentWindow?.innerHeight || 540;
         clear(doc);
@@ -192,10 +222,7 @@
       if (!target) { setStatus('Paste HTML or enter a URL first.'); return; }
       frame.srcdoc = '';
       frame.src = target;
-      await new Promise((resolve) => {
-        frame.onload = resolve;
-        setTimeout(resolve, 1200);
-      });
+      await waitForFrame(5000);
       try {
         const doc = frame.contentDocument;
         if (!doc || !doc.body) throw new Error('blocked');

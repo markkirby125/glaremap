@@ -64,17 +64,14 @@ function clampByte(v) {
 export function colorToLuminance(str) {
   const c = parseColor(str);
   if (!c) return 0;
-  if (c.a >= 1) return luminanceFromRGB(c.r, c.g, c.b);
-  const ch = [c.r / 255, c.g / 255, c.b / 255];
-  const overWhite = ch.map((v) => c.a * v + (1 - c.a) * 1);
-  const overBlack = ch.map((v) => c.a * v + (1 - c.a) * 0);
-  const lum = (rgb01) =>
-    luminanceFromRGB(
-      Math.round(rgb01[0] * 255),
-      Math.round(rgb01[1] * 255),
-      Math.round(rgb01[2] * 255),
-    );
-  return Math.max(lum(overWhite), lum(overBlack));
+  const lum = luminanceFromRGB(c.r, c.g, c.b);
+  if (c.a >= 1) return lum;
+  // Composite in LINEAR luminance space (alpha over black vs over white),
+  // then keep the worst case. Luminance is already linear, so no channel-space
+  // compositing (which would be wrong in gamma-compressed sRGB).
+  const overWhite = c.a * lum + (1 - c.a) * 1;
+  const overBlack = c.a * lum + (1 - c.a) * 0;
+  return Math.max(overWhite, overBlack);
 }
 
 const INTERACTIVE = new Set(['a', 'button', 'input', 'select', 'textarea', 'label', 'summary', 'details', 'option', 'optgroup', 'fieldset', 'legend']);
@@ -167,6 +164,9 @@ export async function scanDocument(doc, options = {}) {
     await scheduler(() => {
       const rect = typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : null;
       if (!isVisible(el, rect)) return;
+      // Skip elements that sit entirely past the viewport edges so the
+      // 2,000-element budget isn't spent on cells the user can't see.
+      if (rect.left >= viewportWidth || rect.top >= viewportHeight) return;
       const style = getComputedStyle(el) || {};
       const interactive = isInteractive(el);
       if (isUnmeasured(el, style)) {
