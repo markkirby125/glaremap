@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GlareMap — spatial glare heatmap lab</title>
+  <meta name="description" content="GlareMap estimates per-region brightness from CSS colors, renders a heatmap, and softens only the hottest regions. Comfort aid, not a medical device.">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101214;
+      --panel: #181a1e;
+      --text: #e8e6e1;
+      --muted: #b8b4aa;
+      --accent: #ffd24a;
+      --focus: #ffd24a;
+      --danger: #ff8a8a;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
+    body { margin: 0; }
+    a { color: var(--accent); }
+    .skip-link {
+      position: absolute; left: 8px; top: -48px; z-index: 10;
+      background: var(--accent); color: #101214; padding: 10px 14px; border-radius: 6px;
+    }
+    .skip-link:focus { top: 8px; }
+    main { max-width: 960px; margin: 0 auto; padding: 16px 16px 48px; }
+    h1 { font-size: clamp(1.6rem, 4vw, 2.2rem); margin: 0 0 4px; }
+    h1 + p { margin: 0 0 20px; color: var(--muted); }
+    section { background: var(--panel); border: 1px solid #2a2d33; border-radius: 10px; padding: 16px; margin: 16px 0; }
+    h2 { margin: 0 0 12px; font-size: 1.2rem; }
+    label { display: block; margin: 12px 0; }
+    label span { display: block; margin-bottom: 6px; }
+    input[type="range"] { width: 100%; min-height: 44px; }
+    textarea { width: 100%; min-height: 140px; font: 13px/1.4 ui-monospace, monospace; }
+    input[type="url"] { width: 100%; min-height: 44px; padding: 8px 10px; font: inherit; }
+    button {
+      min-height: 44px; min-width: 44px; padding: 10px 16px; margin: 4px 8px 4px 0;
+      font: inherit; background: #26292f; color: var(--text); border: 1px solid #3a3e46; border-radius: 6px;
+    }
+    button:hover { border-color: var(--accent); }
+    :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    .note { color: var(--muted); font-size: 0.9rem; }
+    .fallback { color: var(--danger); }
+    #status { min-height: 1.5em; }
+    #preview-frame { width: 100%; min-height: 320px; background: #fff; border: 1px solid #3a3e46; border-radius: 6px; }
+    output { display: inline-block; min-width: 3.5ch; text-align: right; }
+    details { margin-top: 12px; }
+    @media (max-width: 480px) {
+      main { padding: 12px 12px 40px; }
+      section { padding: 12px; }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      section { transition: border-color 150ms ease; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <main id="main">
+    <h1>GlareMap</h1>
+    <p>Spatial glare heatmap + targeted softening. <strong>Comfort aid — not a medical device and not a diagnosis.</strong></p>
+
+    <section aria-labelledby="controls-heading">
+      <h2 id="controls-heading">Controls</h2>
+      <label>
+        <span>Paste HTML to scan</span>
+        <textarea id="paste" placeholder="<div style=&quot;background:#fff&quot;>bright content</div>"></textarea>
+      </label>
+      <label>
+        <span>Or load a URL (best-effort — cross-origin sites can't be scanned from the lab)</span>
+        <input type="url" id="url" placeholder="https://example.com">
+      </label>
+      <label>
+        <span>Threshold — soften regions this bright or brighter</span>
+        <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.6">
+        <output id="threshold-out" for="threshold">0.60</output>
+      </label>
+      <label>
+        <span>Strength — how dark the softening mask is</span>
+        <input type="range" id="strength" min="0.1" max="0.85" step="0.05" value="0.35">
+        <output id="strength-out" for="strength">0.35</output>
+      </label>
+      <div>
+        <button type="button" id="scan">Scan</button>
+        <button type="button" id="off">Off</button>
+        <button type="button" id="export">Copy bookmarklet</button>
+      </div>
+      <p id="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section aria-labelledby="preview-heading">
+      <h2 id="preview-heading">Preview</h2>
+      <p class="note">Image, video, and gradient regions are marked <strong>unmeasured</strong> and never scored as glare. "Glare" is a relative brightness estimate, not a photometric measurement.</p>
+      <iframe id="preview-frame" title="Scanned page preview" sandbox="allow-same-origin"></iframe>
+      <details>
+        <summary>Top hotspots (text alternative)</summary>
+        <p id="hotspots">Scan to list hotspots.</p>
+      </details>
+    </section>
+  </main>
+
+  <script type="module">
+    import { scanDocument } from './scanner.js';
+    import { buildMaskSVG, topHotspots, heatmapColor } from './renderer.js';
+
+    const paste = document.getElementById('paste');
+    const url = document.getElementById('url');
+    const frame = document.getElementById('preview-frame');
+    const threshold = document.getElementById('threshold');
+    const thresholdOut = document.getElementById('threshold-out');
+    const strength = document.getElementById('strength');
+    const strengthOut = document.getElementById('strength-out');
+    const scanBtn = document.getElementById('scan');
+    const offBtn = document.getElementById('off');
+    const exportBtn = document.getElementById('export');
+    const status = document.getElementById('status');
+    const hotspots = document.getElementById('hotspots');
+
+    threshold.addEventListener('input', () => { thresholdOut.textContent = Number(threshold.value).toFixed(2); });
+    strength.addEventListener('input', () => { strengthOut.textContent = Number(strength.value).toFixed(2); });
+
+    let lastCells = [];
+    let lastCols = 96;
+    let lastRows = 54;
+
+    function setStatus(text) { status.textContent = text; }
+
+    function drawHeatmap(doc, cells, cols, rows) {
+      doc.getElementById('glaremap-heatmap')?.remove();
+      const canvas = doc.createElement('canvas');
+      canvas.id = 'glaremap-heatmap';
+      canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483645;opacity:0.55;';
+      canvas.width = cols;
+      canvas.height = rows;
+      const ctx = canvas.getContext('2d');
+      for (const cell of cells) {
+        if (cell.unmeasured) continue;
+        const [r, g, b] = heatmapColor(cell.luma);
+        ctx.fillStyle = `rgba(${r},${g},${b},0.6)`;
+        ctx.fillRect(cell.x, cell.y, 1, 1);
+      }
+      (doc.body || doc.documentElement).appendChild(canvas);
+    }
+
+    function applyMask(doc, cells, cols, rows) {
+      doc.getElementById('glaremap-mask')?.remove();
+      const wrapper = doc.createElement('div');
+      wrapper.id = 'glaremap-mask';
+      wrapper.innerHTML = buildMaskSVG(cells, cols, rows, Number(threshold.value), Number(strength.value));
+      (doc.body || doc.documentElement).appendChild(wrapper);
+    }
+
+    function clear(doc) {
+      doc.getElementById('glaremap-mask')?.remove();
+      doc.getElementById('glaremap-heatmap')?.remove();
+    }
+
+    async function runScan(doc, viewportW, viewportH) {
+      const result = await scanDocument(doc, { viewportWidth: viewportW, viewportHeight: viewportH });
+      lastCells = result.cells;
+      lastCols = result.cols;
+      lastRows = result.rows;
+      drawHeatmap(doc, result.cells, result.cols, result.rows);
+      applyMask(doc, result.cells, result.cols, result.rows);
+      const top = topHotspots(result.cells, Number(threshold.value), 5);
+      hotspots.textContent = top.length
+        ? top.map((h) => `row ${h.row}, col ${h.col} (${h.luma})`).join(' · ')
+        : 'No hotspots above the threshold.';
+      setStatus(`Scanned ${result.scanned} elements. Image/video/gradient regions are unmeasured.`);
+    }
+
+    scanBtn.addEventListener('click', async () => {
+      const html = paste.value.trim();
+      if (html) {
+        frame.removeAttribute('src');
+        frame.srcdoc = html;
+        await new Promise((resolve) => {
+          frame.onload = resolve;
+          setTimeout(resolve, 800);
+        });
+        const doc = frame.contentDocument;
+        if (!doc) { setStatus('Could not access the preview document.'); return; }
+        const w = frame.contentWindow?.innerWidth || 960;
+        const h = frame.contentWindow?.innerHeight || 540;
+        clear(doc);
+        await runScan(doc, w, h);
+        return;
+      }
+      const target = url.value.trim();
+      if (!target) { setStatus('Paste HTML or enter a URL first.'); return; }
+      frame.srcdoc = '';
+      frame.src = target;
+      await new Promise((resolve) => {
+        frame.onload = resolve;
+        setTimeout(resolve, 1200);
+      });
+      try {
+        const doc = frame.contentDocument;
+        if (!doc || !doc.body) throw new Error('blocked');
+        clear(doc);
+        await runScan(doc, frame.contentWindow?.innerWidth || 960, frame.contentWindow?.innerHeight || 540);
+      } catch {
+        setStatus('This site can\'t be scanned from the lab (cross-origin or blocked). Use the bookmarklet on the site itself.');
+      }
+    });
+
+    offBtn.addEventListener('click', () => {
+      clear(frame.contentDocument || document);
+      hotspots.textContent = 'Scan to list hotspots.';
+      setStatus('Off.');
+    });
+
+    exportBtn.addEventListener('click', async () => {
+      try {
+        const res = await fetch('./bookmarklet.min.js');
+        if (!res.ok) throw new Error('build first');
+        const code = await res.text();
+        const uri = 'javascript:' + encodeURIComponent(code);
+        await navigator.clipboard.writeText(uri);
+        setStatus('Bookmarklet copied to clipboard. Create a bookmark and paste it as the URL.');
+      } catch {
+        setStatus('Bookmarklet bundle missing — run `npm run build` first.');
+      }
+    });
+
+    setStatus('Paste HTML and press Scan, or load a same-origin URL.');
+  </script>
+</body>
+</html>
